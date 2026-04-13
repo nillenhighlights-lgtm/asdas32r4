@@ -1,176 +1,304 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>Squirrel Run 🐿</title>
-<style>
-body {
-    margin:0;
-    background:#0f0f0f;
-    color:white;
-    font-family:Arial;
-    overflow:hidden;
-}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spotify Runner - Telegram Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #191414; /* Темный фон Spotify */
+            color: #FFFFFF;
+            font-family: 'Circular', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            touch-action: none; /* Отключаем скролл на мобилках */
+        }
 
-#game {
-    width:100%;
-    height:100vh;
-    position:relative;
-}
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+        }
 
-#ground {
-    position:absolute;
-    bottom:0;
-    width:100%;
-    height:5px;
-    background:#d4ff00;
-}
+        canvas {
+            display: block;
+            width: 100%;
+            background-color: #191414;
+            border-bottom: 2px solid #282828;
+        }
 
-#squirrel {
-    position:absolute;
-    bottom:5px;
-    left:50px;
-    width:50px;
-    height:50px;
-    font-size:40px;
-}
+        #score-board {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #1DB954; /* Зеленый цвет Spotify */
+        }
 
-.obstacle {
-    position:absolute;
-    bottom:5px;
-    width:40px;
-    height:40px;
-    background:red;
-    border-radius:5px;
-}
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
 
-#score {
-    position:absolute;
-    top:10px;
-    left:10px;
-    font-size:20px;
-}
+        #game-over h1 {
+            margin: 0;
+            font-size: 32px;
+            color: #1DB954;
+        }
 
-#start {
-    position:absolute;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
-    padding:20px 40px;
-    background:#d4ff00;
-    color:black;
-    font-weight:bold;
-    cursor:pointer;
-}
-</style>
+        #game-over p {
+            margin: 10px 0 0;
+            font-size: 16px;
+            color: #b3b3b3;
+        }
+    </style>
 </head>
 <body>
 
-<div id="game">
-    <div id="score">0</div>
-    <div id="start">СТАРТ</div>
-    <div id="squirrel">🐿</div>
-    <div id="ground"></div>
-</div>
+    <div id="game-container">
+        <div id="score-board">Счет: <span id="score">0</span></div>
+        <canvas id="gameCanvas" width="600" height="200"></canvas>
+        <div id="game-over">
+            <h1>Трек на паузе</h1>
+            <p>Нажми, чтобы продолжить</p>
+        </div>
+    </div>
 
-<script>
-let squirrel = document.getElementById("squirrel");
-let scoreEl = document.getElementById("score");
-let startBtn = document.getElementById("start");
+    <script>
+        // Инициализация Telegram Web App
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Разворачиваем на весь экран
 
-let jumping = false;
-let score = 0;
-let speed = 6;
-let running = false;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('game-over');
 
-function jump(){
-    if(jumping) return;
-    jumping = true;
+        // Игровые переменные
+        let isPlaying = false;
+        let isGameOver = false;
+        let score = 0;
+        let frames = 0;
+        let gameSpeed = 5;
 
-    let up = setInterval(()=>{
-        let bottom = parseInt(window.getComputedStyle(squirrel).bottom);
-        if(bottom >= 150){
-            clearInterval(up);
+        // Физика
+        const gravity = 0.6;
 
-            let down = setInterval(()=>{
-                let bottom = parseInt(window.getComputedStyle(squirrel).bottom);
-                if(bottom <= 5){
-                    clearInterval(down);
-                    jumping = false;
-                } else {
-                    squirrel.style.bottom = bottom - 5 + "px";
+        // Игрок (Логотип Spotify)
+        const player = {
+            x: 50,
+            y: 150,
+            radius: 18, // Радиус кружка
+            dy: 0,
+            jumpForce: -10,
+            isGrounded: false,
+            
+            draw() {
+                // Рисуем зеленый круг
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#1DB954';
+                ctx.fill();
+                ctx.closePath();
+
+                // Рисуем черные "волны" как у Spotify
+                ctx.strokeStyle = '#191414';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+
+                // Верхняя волна
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + 6, 14, Math.PI * 1.25, Math.PI * 1.75);
+                ctx.stroke();
+                
+                // Средняя волна
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + 2, 10, Math.PI * 1.25, Math.PI * 1.75);
+                ctx.stroke();
+
+                // Нижняя волна
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - 2, 6, Math.PI * 1.25, Math.PI * 1.75);
+                ctx.stroke();
+            },
+
+            update() {
+                // Гравитация
+                if (!this.isGrounded) {
+                    this.dy += gravity;
+                    this.y += this.dy;
                 }
-            },20);
 
-        } else {
-            squirrel.style.bottom = bottom + 5 + "px";
+                // Столкновение с землей
+                if (this.y + this.radius >= canvas.height - 10) {
+                    this.y = canvas.height - 10 - this.radius;
+                    this.dy = 0;
+                    this.isGrounded = true;
+                } else {
+                    this.isGrounded = false;
+                }
+
+                this.draw();
+            },
+
+            jump() {
+                if (this.isGrounded) {
+                    this.dy = this.jumpForce;
+                    this.isGrounded = false;
+                    tg.HapticFeedback.impactOccurred('light'); // Вибрация для ТГ
+                }
+            }
+        };
+
+        // Препятствия (Эквалайзер)
+        let obstacles = [];
+
+        class Obstacle {
+            constructor() {
+                this.width = 15 + Math.random() * 15; // Ширина столбика
+                this.height = 30 + Math.random() * 40; // Высота столбика
+                this.x = canvas.width;
+                this.y = canvas.height - 10 - this.height;
+            }
+
+            draw() {
+                ctx.fillStyle = '#FFFFFF';
+                // Делаем столбик похожим на полосу эквалайзера (с закругленным верхом)
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y, this.width, this.height, [5, 5, 0, 0]);
+                ctx.fill();
+            }
+
+            update() {
+                this.x -= gameSpeed;
+                this.draw();
+            }
         }
-    },20);
-}
 
-document.addEventListener("keydown", e=>{
-    if(e.code === "Space") jump();
-});
+        // Логика игры
+        function handleObstacles() {
+            // Спавн препятствий
+            if (frames % (Math.floor(Math.random() * 60) + 70) === 0) {
+                obstacles.push(new Obstacle());
+            }
 
-document.addEventListener("touchstart", jump);
+            for (let i = 0; i < obstacles.length; i++) {
+                let obs = obstacles[i];
+                obs.update();
 
-function spawnObstacle(){
-    if(!running) return;
+                // Удаление ушедших за экран
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(i, 1);
+                    i--;
+                    continue;
+                }
 
-    let obs = document.createElement("div");
-    obs.className = "obstacle";
-    obs.style.left = window.innerWidth + "px";
+                // Проверка столкновений (Box collision approximation)
+                let distX = Math.abs(player.x - obs.x - obs.width / 2);
+                let distY = Math.abs(player.y - obs.y - obs.height / 2);
 
-    document.getElementById("game").appendChild(obs);
-
-    let move = setInterval(()=>{
-        let left = parseInt(obs.style.left);
-        obs.style.left = left - speed + "px";
-
-        let sRect = squirrel.getBoundingClientRect();
-        let oRect = obs.getBoundingClientRect();
-
-        if(
-            oRect.left < sRect.right &&
-            oRect.right > sRect.left &&
-            oRect.bottom > sRect.top
-        ){
-            running = false;
-            alert("💀 Ты врезался! Очки: " + score);
-            location.reload();
+                if (distX <= (obs.width / 2 + player.radius * 0.7) && 
+                    distY <= (obs.height / 2 + player.radius * 0.7)) {
+                    gameOver();
+                }
+            }
         }
 
-        if(left < -50){
-            obs.remove();
-            clearInterval(move);
+        function gameOver() {
+            isGameOver = true;
+            isPlaying = false;
+            gameOverScreen.style.display = 'block';
+            tg.HapticFeedback.notificationOccurred('error'); // Вибрация при проигрыше
         }
-    },20);
 
-    setTimeout(spawnObstacle, 1200 - speed*50);
-}
+        function resetGame() {
+            isGameOver = false;
+            isPlaying = true;
+            score = 0;
+            frames = 0;
+            gameSpeed = 5;
+            obstacles = [];
+            player.y = 150;
+            player.dy = 0;
+            gameOverScreen.style.display = 'none';
+            scoreElement.innerText = score;
+            animate();
+        }
 
-function gameLoop(){
-    if(!running) return;
+        function drawGround() {
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - 10);
+            ctx.lineTo(canvas.width, canvas.height - 10);
+            ctx.strokeStyle = '#1DB954';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
 
-    score++;
-    scoreEl.innerText = score;
+        // Основной игровой цикл
+        function animate() {
+            if (!isPlaying) return;
 
-    if(score % 200 === 0){
-        speed += 1;
-    }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawGround();
+            player.update();
+            handleObstacles();
 
-    requestAnimationFrame(gameLoop);
-}
+            // Обновление счета
+            frames++;
+            if (frames % 10 === 0) {
+                score++;
+                scoreElement.innerText = score;
+            }
 
-startBtn.onclick = ()=>{
-    startBtn.style.display = "none";
-    running = true;
-    score = 0;
-    speed = 6;
-    spawnObstacle();
-    gameLoop();
-};
-</script>
+            // Ускорение игры со временем
+            if (frames % 500 === 0) {
+                gameSpeed += 0.5;
+            }
 
+            requestAnimationFrame(animate);
+        }
+
+        // Управление (Клавиатура и Тап)
+        function handleInput() {
+            if (isGameOver) {
+                resetGame();
+            } else if (!isPlaying) {
+                resetGame();
+            } else {
+                player.jump();
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                handleInput();
+            }
+        });
+
+        // Слушатель для мобильных (Телеграм)
+        window.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Запрещаем зум и скролл при тапе
+            handleInput();
+        }, { passive: false });
+
+        // Отрисовка первого кадра до начала
+        player.draw();
+        drawGround();
+    </script>
 </body>
 </html>
