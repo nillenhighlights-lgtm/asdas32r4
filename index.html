@@ -4,7 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Spotify Run Pro: Музыкальная гонка</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js">
+    const albumImages = [];
+    const albumSources = [
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8gBZ1lS3ve1PNQzXIXCKg2G7udJJf3EfqQg&s',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzWmPfr18SQ4tUzVw9WRfFmnNUZTZknO0JfA&s',
+    'https://upload.wikimedia.org/wikipedia/ru/8/8d/Yeezus_album_cover.png', // Исправленная ссылка Yeezus
+    'https://the-flow.ru/uploads/images/catalog/element/674ed908c6641.jpg',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRnPdihXAp9x03MtNbFYV0gcWLiYfx3O8vbSA&s',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTSu6yJaWPq17zZ7TFm9yeBlW7M7Qjnegbtqw&s',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTGtPT8TMsDZy4LTFLKQTs9ibT48aWX7yNcqQ&s',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSXb3zzq2Q8V-8txGocR-g40tBe_YP9MLsAyQ&s',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRsoJ-5SGqVZDuYgrxJ9EtVKr1-KfbbxAVZIA&s',
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRiHSXAV9bLn_Qj-kV8CAXbkOJYGn8n-M0k-Q&s'
+];
+
+albumSources.forEach(src => {
+    const img = new Image();
+    img.src = src;
+    img.crossOrigin = "anonymous"; // Чтобы не было проблем с доступом
+    albumImages.push(img);
+});
     <style>
         :root {
             --sp-green: #1DB954;
@@ -317,46 +337,41 @@
         }
     }
 
-    // Препятствие: Альбом (летающий)
     class FlyingAlbumObstacle extends Obstacle {
-        constructor() {
-            super();
-            this.w = 60;
-            this.h = 60;
-            // Случайная высота: в прыжке или на уровне головы
-            this.y = (Math.random() < 0.5) ? 150 : 80;
-        }
-        draw() {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            
-            // Тень
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-            
-            // Корпус альбома
-            ctx.fillStyle = '#b3b3b3'; // Светло-серый
-            ctx.beginPath();
-            ctx.roundRect(0, 0, this.w, this.h, 10);
-            ctx.fill();
-            
-            // Текстура-заглушка (шум)
-            ctx.fillStyle = `rgba(0, 0, 0, 0.1)`;
-            for(let k=0; k<20; k++) {
-                ctx.fillRect(Math.random()*this.w, Math.random()*this.h, 3, 3);
-            }
-
-            // Текст (мелкий)
-            ctx.fillStyle = '#121212';
-            ctx.font = 'bold 8px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('ALBUM', this.w/2, this.h/2 - 5);
-            ctx.fillText('PLACEHOLDER', this.w/2, this.h/2 + 5);
-
-            ctx.restore();
-            ctx.shadowBlur = 0;
-        }
+    constructor() {
+        super();
+        this.w = 55; // Немного уменьшил размер, чтобы было сложнее
+        this.h = 55;
+        // Позиция: высоко (надо пробежать под ним) или низко (надо перепрыгнуть)
+        this.y = (Math.random() < 0.5) ? 140 : 80;
+        
+        // Выбираем случайную обложку из загруженных
+        this.img = albumImages[Math.floor(Math.random() * albumImages.length)];
     }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Свечение вокруг альбома
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.3)';
+
+        if (this.img && this.img.complete) {
+            // Рисуем картинку со скругленными углами
+            ctx.beginPath();
+            ctx.roundRect(0, 0, this.w, this.h, 6);
+            ctx.clip();
+            ctx.drawImage(this.img, 0, 0, this.w, this.h);
+        } else {
+            // Если картинка не успела подгрузиться — рисуем белый квадрат
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, this.w, this.h);
+        }
+
+        ctx.restore();
+    }
+}
 
     let obstacles = [];
 
