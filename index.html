@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>SpotSub RUSH</title>
+<style>
+body {
+    margin:0;
+    background:#0f0f0f;
+    color:white;
+    font-family:Arial;
+    overflow:hidden;
+}
+
+#game {
+    width:100%;
+    height:100vh;
+    position:relative;
+    background:linear-gradient(#121212, #000);
+}
+
+.player {
+    position:absolute;
+    bottom:20px;
+    width:100px;
+    height:20px;
+    background:#d4ff00;
+    left:50%;
+    transform:translateX(-50%);
+    border-radius:10px;
+}
+
+.note, .bad {
+    position:absolute;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+}
+
+.note { background:#1db954; }
+.bad { background:red; }
+
+#score {
+    position:absolute;
+    top:10px;
+    left:10px;
+    font-size:20px;
+}
+
+#combo {
+    position:absolute;
+    top:40px;
+    left:10px;
+    color:#d4ff00;
+}
+
+#start {
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    padding:20px 40px;
+    background:#d4ff00;
+    color:black;
+    font-weight:bold;
+    cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="game">
+    <div id="score">Очки: 0</div>
+    <div id="combo">Комбо: x1</div>
+    <div id="start">СТАРТ</div>
+    <div class="player" id="player"></div>
+</div>
+
+<script>
+let game = document.getElementById("game");
+let player = document.getElementById("player");
+let scoreEl = document.getElementById("score");
+let comboEl = document.getElementById("combo");
+let startBtn = document.getElementById("start");
+
+let score = 0;
+let combo = 1;
+let speed = 4;
+let running = false;
+
+document.addEventListener("mousemove", e=>{
+    player.style.left = e.clientX + "px";
+});
+
+function spawn(type){
+    let el = document.createElement("div");
+    el.className = type;
+    el.style.left = Math.random() * (window.innerWidth - 40) + "px";
+    game.appendChild(el);
+
+    let fall = setInterval(()=>{
+        el.style.top = (el.offsetTop + speed) + "px";
+
+        let r1 = el.getBoundingClientRect();
+        let r2 = player.getBoundingClientRect();
+
+        if(r1.bottom >= r2.top && r1.left < r2.right && r1.right > r2.left){
+            if(type === "note"){
+                score += 10 * combo;
+                combo++;
+                comboEl.innerText = "Комбо: x" + combo;
+            } else {
+                combo = 1;
+                comboEl.innerText = "Комбо: x1";
+                score -= 20;
+            }
+
+            scoreEl.innerText = "Очки: " + score;
+            el.remove();
+            clearInterval(fall);
+        }
+
+        if(el.offsetTop > window.innerHeight){
+            el.remove();
+            clearInterval(fall);
+            combo = 1;
+            comboEl.innerText = "Комбо: x1";
+        }
+
+    },20);
+}
+
+function loop(){
+    if(!running) return;
+
+    spawn(Math.random() > 0.2 ? "note" : "bad");
+
+    speed += 0.05;
+
+    setTimeout(loop, 600 - speed*5);
+}
+
+startBtn.onclick = ()=>{
+    startBtn.style.display = "none";
+    running = true;
+    score = 0;
+    combo = 1;
+    speed = 4;
+    loop();
+};
+</script>
+
+</body>
+</html>
