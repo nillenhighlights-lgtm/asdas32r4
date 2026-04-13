@@ -4,39 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Spotify Run Pro: Музыкальная гонка</title>
-    <script src="https://telegram.org/js/telegram-web-app.js">
-    function makeCover(text, bg) {
-    const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
-        <rect width="300" height="300" fill="${bg}"/>
-        <text x="150" y="170" text-anchor="middle"
-              font-size="60" fill="#fff">${text}</text>
-    </svg>`;
-    return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-}
-
-const customAlbums = [
-    { cover: makeCover('01', '#1db954') },
-    { cover: makeCover('02', '#1ed760') },
-    { cover: makeCover('03', '#0f9d58') },
-    { cover: makeCover('04', '#121212') },
-    { cover: makeCover('05', '#2b2b2b') },
-    { cover: makeCover('06', '#3a3a3a') },
-    { cover: makeCover('07', '#5c2d91') },
-    { cover: makeCover('08', '#8a2be2') },
-    { cover: makeCover('09', '#e91e63') },
-    { cover: makeCover('10', '#ff9800') }
-];
-
-// сохраняем (чтобы игра использовала)
-localStorage.setItem('sp-custom-albums', JSON.stringify(customAlbums));
-
-albumSources.forEach(src => {
-    const img = new Image();
-    img.src = src;
-    img.crossOrigin = "anonymous"; // Чтобы не было проблем с доступом
-    albumImages.push(img);
-});
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
             --sp-green: #1DB954;
@@ -172,7 +140,30 @@ albumSources.forEach(src => {
     highScoreDisplay.innerText = highScore;
 
     const gravity = 0.5;
-    
+
+    // --- ПРЕЛОАД ОБЛОЖЕК АЛЬБОМОВ ---
+    const albumUrls = [
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR8gBZ1lS3ve1PNQzXIXCKg2G7udJJf3EfqQg&s",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzWmPfr18SQ4tUzVw9WRfFmnNUZTZknO0JfA&s",
+        "https://upload.wikimedia.org/wikipedia/en/0/03/Yeezus_album_cover.png", // Заменил вики-ссылку на прямую картинку
+        "https://the-flow.ru/uploads/images/catalog/element/674ed908c6641.jpg",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRnPdihXAp9x03MtNbFYV0gcWLiYfx3O8vbSA&s",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTSu6yJaWPq17zZ7TFm9yeBlW7M7Qjnegbtqw&s",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTGtPT8TMsDZy4LTFLKQTs9ibT48aWX7yNcqQ&s",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSXb3zzq2Q8V-8txGocR-g40tBe_YP9MLsAyQ&s",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRsoJ-5SGqVZDuYgrxJ9EtVKr1-KfbbxAVZIA&s",
+        "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRiHSXAV9bLn_Qj-kV8CAXbkOJYGn8n-M0k-Q&s"
+    ];
+
+    const preloadedAlbums = [];
+    albumUrls.forEach(url => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous"; // На всякий случай для CORS
+        img.src = url;
+        preloadedAlbums.push(img);
+    });
+    // --------------------------------
+
     // Частицы при взрыве
     let particles = [];
     class Particle {
@@ -205,49 +196,48 @@ albumSources.forEach(src => {
         angle: 0,
 
         draw() {
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    
-    // Лёгкий фирменный наклон
-    ctx.rotate(this.angle + 0.25);
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            
+            // Лёгкий фирменный наклон
+            ctx.rotate(this.angle + 0.25);
 
-    // Тень
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = '#1DB954';
+            // Тень
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#1DB954';
 
-    // Круг (фон Spotify)
-    ctx.beginPath();
-    ctx.arc(0, 0, this.r, 0, Math.PI * 2);
-    ctx.fillStyle = '#1DB954';
-    ctx.fill();
+            // Круг (фон Spotify)
+            ctx.beginPath();
+            ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+            ctx.fillStyle = '#1DB954';
+            ctx.fill();
 
-    // Настройки линий
-    ctx.strokeStyle = '#121212';
-    ctx.lineCap = 'round';
+            // Настройки линий
+            ctx.strokeStyle = '#121212';
+            ctx.lineCap = 'round';
 
-    // --- Волны Spotify (ПРАВИЛЬНЫЕ) ---
+            // --- Волны Spotify ---
+            // Верхняя
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(-4, -2, 16, Math.PI * 1.2, Math.PI * 1.9);
+            ctx.stroke();
 
-    // Верхняя (самая длинная)
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(-4, -2, 16, Math.PI * 1.2, Math.PI * 1.9);
-    ctx.stroke();
+            // Средняя
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(-4, 4, 12, Math.PI * 1.2, Math.PI * 1.9);
+            ctx.stroke();
 
-    // Средняя
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(-4, 4, 12, Math.PI * 1.2, Math.PI * 1.9);
-    ctx.stroke();
+            // Нижняя
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(-4, 9, 8, Math.PI * 1.2, Math.PI * 1.9);
+            ctx.stroke();
 
-    // Нижняя (самая короткая)
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(-4, 9, 8, Math.PI * 1.2, Math.PI * 1.9);
-    ctx.stroke();
-
-    ctx.restore();
-    ctx.shadowBlur = 0;
-},
+            ctx.restore();
+            ctx.shadowBlur = 0;
+        },
 
         update() {
             this.dy += gravity;
@@ -272,7 +262,6 @@ albumSources.forEach(src => {
     class Obstacle {
         constructor() {
             this.x = canvas.width + 100;
-            // random number to create noise texture
             this.textureSeed = Math.random() * 1000;
         }
         draw() {} // Override in subclass
@@ -282,7 +271,7 @@ albumSources.forEach(src => {
         }
     }
 
-    // Препятствие: Блок шума (шумный прямоугольник)
+    // Препятствие: Блок шума
     class GroundBlockObstacle extends Obstacle {
         constructor() {
             super();
@@ -294,7 +283,6 @@ albumSources.forEach(src => {
             ctx.save();
             ctx.translate(this.x, this.y);
             
-            // Основной градиент
             let gradient = ctx.createLinearGradient(0, 0, 0, this.h);
             gradient.addColorStop(0, '#555555');
             gradient.addColorStop(1, '#FFFFFF');
@@ -304,7 +292,6 @@ albumSources.forEach(src => {
             ctx.roundRect(0, 0, this.w, this.h, 5);
             ctx.fill();
             
-            // Шумная текстура
             ctx.fillStyle = `rgba(0, 0, 0, 0.2)`;
             for(let k=0; k<10; k++) {
                 ctx.fillRect(Math.random()*this.w, Math.random()*this.h, 2, 2);
@@ -313,7 +300,7 @@ albumSources.forEach(src => {
         }
     }
 
-    // Препятствие: Нота (наземная)
+    // Препятствие: Нота
     class GroundNoteObstacle extends Obstacle {
         constructor() {
             super();
@@ -328,15 +315,12 @@ albumSources.forEach(src => {
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
             
-            // Хвостик ноты
             ctx.fillRect(20, 0, 5, 40);
             
-            // Головка ноты (эллипс)
             ctx.beginPath();
             ctx.ellipse(10, 40, 10, 7, Math.PI / 4, 0, Math.PI * 2);
             ctx.fill();
             
-            // Поперечина (флажок)
             ctx.beginPath();
             ctx.moveTo(25, 0);
             ctx.lineTo(25, 10);
@@ -349,45 +333,42 @@ albumSources.forEach(src => {
         }
     }
 
-    class FlyingAlbumObstacle {
-    constructor(album) {
-        this.x = canvas.width + 50;
-        this.y = 80 + Math.random() * 120;
-        this.w = 70;
-        this.h = 70;
+    // Препятствие: Альбом (КАСТОМНЫЙ)
+    class FlyingAlbumObstacle extends Obstacle {
+        constructor() {
+            super();
+            this.w = 60;
+            this.h = 60;
+            this.y = (Math.random() < 0.5) ? 150 : 80;
+            
+            // Берем случайную прелоаднутую картинку
+            this.albumImage = preloadedAlbums[Math.floor(Math.random() * preloadedAlbums.length)];
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            
+            // Тень
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            
+            // Создаем маску для закругленных краев
+            ctx.beginPath();
+            ctx.roundRect(0, 0, this.w, this.h, 10);
+            ctx.clip(); // Обрезаем всё, что выходит за рамки скругленного квадрата
+            
+            // Рисуем картинку, если она успела загрузиться
+            if (this.albumImage && this.albumImage.complete && this.albumImage.naturalWidth !== 0) {
+                ctx.drawImage(this.albumImage, 0, 0, this.w, this.h);
+            } else {
+                // Заглушка, если вдруг картинка битая или еще грузится
+                ctx.fillStyle = '#b3b3b3';
+                ctx.fill();
+            }
 
-        this.image = new Image();
-        this.loaded = false;
-
-        // 📀 Берём картинку из альбома
-        const src = album?.cover || 'https://via.placeholder.com/70';
-
-        this.image.onload = () => {
-            this.loaded = true;
-        };
-
-        this.image.onerror = () => {
-            console.log('Ошибка загрузки альбома:', src);
-        };
-
-        this.image.src = src;
-    }
-
-    update() {
-        this.x -= gameSpeed;
-        this.draw();
-    }
-
-    draw() {
-        if (this.loaded) {
-            ctx.drawImage(this.image, this.x, this.y, this.w, this.h);
-        } else {
-            // fallback если не загрузилось
-            ctx.fillStyle = '#1db954';
-            ctx.fillRect(this.x, this.y, this.w, this.h);
+            ctx.restore();
         }
     }
-}
 
     let obstacles = [];
 
@@ -413,7 +394,6 @@ albumSources.forEach(src => {
             highScoreDisplay.innerText = highScore;
         }
         
-        // Создаем взрыв
         for(let i=0; i<15; i++) particles.push(new Particle(player.x, player.y));
         
         setTimeout(() => {
@@ -440,26 +420,20 @@ albumSources.forEach(src => {
         if (gameState === 'PLAYING') {
             player.update();
 
-            // Спавн разных препятствий
             if (frames % 90 === 0) {
-    let r = Math.random();
-
-    if (r < 0.4) {
-        obstacles.push(new GroundBlockObstacle());
-    } else if (r < 0.7) {
-        obstacles.push(new GroundNoteObstacle());
-    } else {
-        // 🎯 Берём случайный кастомный альбом
-        const album = customAlbums[Math.floor(Math.random() * customAlbums.length)];
-
-        obstacles.push(new FlyingAlbumObstacle(album));
-    }
-}
+                let r = Math.random();
+                if (r < 0.4) {
+                    obstacles.push(new GroundBlockObstacle());
+                } else if (r < 0.7) {
+                    obstacles.push(new GroundNoteObstacle());
+                } else {
+                    obstacles.push(new FlyingAlbumObstacle());
+                }
+            }
             
             obstacles.forEach((obs, index) => {
                 obs.update();
                 
-                // Коллизия (учитываем радиус игрока и размеры препятствия)
                 let playerHitRadius = 15;
                 if (player.x + playerHitRadius > obs.x && player.x - playerHitRadius < obs.x + obs.w &&
                     player.y + playerHitRadius > obs.y && player.y - playerHitRadius < obs.y + obs.h) {
@@ -477,7 +451,6 @@ albumSources.forEach(src => {
             gameSpeed += 0.001;
         }
 
-        // Отрисовка частиц взрыва
         particles.forEach((p, i) => {
             p.update();
             p.draw();
