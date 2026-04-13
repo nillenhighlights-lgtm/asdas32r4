@@ -172,47 +172,39 @@
         grounded: false,
         angle: 0,
 
-        draw() {
+draw() {
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle);
+    ctx.rotate(this.angle + 0.25);
 
-    // Тень
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = '#1DB954';
-
-    // Круг (фон)
+    // Круг
     ctx.beginPath();
     ctx.arc(0, 0, this.r, 0, Math.PI * 2);
     ctx.fillStyle = '#1DB954';
     ctx.fill();
 
-    // Настройки линий
     ctx.strokeStyle = '#121212';
     ctx.lineCap = 'round';
 
-    // --- Волны Spotify ---
-
-    // 1 линия (верхняя, самая длинная)
+    // Верхняя линия
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(-2, -6, 16, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.arc(-4, -2, 16, Math.PI * 1.2, Math.PI * 1.9);
     ctx.stroke();
 
-    // 2 линия (средняя)
+    // Средняя
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(-2, 2, 12, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.arc(-4, 4, 12, Math.PI * 1.2, Math.PI * 1.9);
     ctx.stroke();
 
-    // 3 линия (нижняя, самая короткая)
+    // Нижняя
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(-2, 8, 8, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.arc(-4, 9, 8, Math.PI * 1.2, Math.PI * 1.9);
     ctx.stroke();
 
     ctx.restore();
-    ctx.shadowBlur = 0;
 }
 
         update() {
