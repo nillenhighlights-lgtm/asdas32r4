@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>SpotSub RUSH</title>
+<title>Squirrel Run 🐿</title>
 <style>
 body {
     margin:0;
@@ -16,42 +16,39 @@ body {
     width:100%;
     height:100vh;
     position:relative;
-    background:linear-gradient(#121212, #000);
 }
 
-.player {
+#ground {
     position:absolute;
-    bottom:20px;
-    width:100px;
-    height:20px;
+    bottom:0;
+    width:100%;
+    height:5px;
     background:#d4ff00;
-    left:50%;
-    transform:translateX(-50%);
-    border-radius:10px;
 }
 
-.note, .bad {
+#squirrel {
     position:absolute;
+    bottom:5px;
+    left:50px;
+    width:50px;
+    height:50px;
+    font-size:40px;
+}
+
+.obstacle {
+    position:absolute;
+    bottom:5px;
     width:40px;
     height:40px;
-    border-radius:50%;
+    background:red;
+    border-radius:5px;
 }
-
-.note { background:#1db954; }
-.bad { background:red; }
 
 #score {
     position:absolute;
     top:10px;
     left:10px;
     font-size:20px;
-}
-
-#combo {
-    position:absolute;
-    top:40px;
-    left:10px;
-    color:#d4ff00;
 }
 
 #start {
@@ -70,83 +67,108 @@ body {
 <body>
 
 <div id="game">
-    <div id="score">Очки: 0</div>
-    <div id="combo">Комбо: x1</div>
+    <div id="score">0</div>
     <div id="start">СТАРТ</div>
-    <div class="player" id="player"></div>
+    <div id="squirrel">🐿</div>
+    <div id="ground"></div>
 </div>
 
 <script>
-let game = document.getElementById("game");
-let player = document.getElementById("player");
+let squirrel = document.getElementById("squirrel");
 let scoreEl = document.getElementById("score");
-let comboEl = document.getElementById("combo");
 let startBtn = document.getElementById("start");
 
+let jumping = false;
 let score = 0;
-let combo = 1;
-let speed = 4;
+let speed = 6;
 let running = false;
 
-document.addEventListener("mousemove", e=>{
-    player.style.left = e.clientX + "px";
-});
+function jump(){
+    if(jumping) return;
+    jumping = true;
 
-function spawn(type){
-    let el = document.createElement("div");
-    el.className = type;
-    el.style.left = Math.random() * (window.innerWidth - 40) + "px";
-    game.appendChild(el);
+    let up = setInterval(()=>{
+        let bottom = parseInt(window.getComputedStyle(squirrel).bottom);
+        if(bottom >= 150){
+            clearInterval(up);
 
-    let fall = setInterval(()=>{
-        el.style.top = (el.offsetTop + speed) + "px";
+            let down = setInterval(()=>{
+                let bottom = parseInt(window.getComputedStyle(squirrel).bottom);
+                if(bottom <= 5){
+                    clearInterval(down);
+                    jumping = false;
+                } else {
+                    squirrel.style.bottom = bottom - 5 + "px";
+                }
+            },20);
 
-        let r1 = el.getBoundingClientRect();
-        let r2 = player.getBoundingClientRect();
-
-        if(r1.bottom >= r2.top && r1.left < r2.right && r1.right > r2.left){
-            if(type === "note"){
-                score += 10 * combo;
-                combo++;
-                comboEl.innerText = "Комбо: x" + combo;
-            } else {
-                combo = 1;
-                comboEl.innerText = "Комбо: x1";
-                score -= 20;
-            }
-
-            scoreEl.innerText = "Очки: " + score;
-            el.remove();
-            clearInterval(fall);
+        } else {
+            squirrel.style.bottom = bottom + 5 + "px";
         }
-
-        if(el.offsetTop > window.innerHeight){
-            el.remove();
-            clearInterval(fall);
-            combo = 1;
-            comboEl.innerText = "Комбо: x1";
-        }
-
     },20);
 }
 
-function loop(){
+document.addEventListener("keydown", e=>{
+    if(e.code === "Space") jump();
+});
+
+document.addEventListener("touchstart", jump);
+
+function spawnObstacle(){
     if(!running) return;
 
-    spawn(Math.random() > 0.2 ? "note" : "bad");
+    let obs = document.createElement("div");
+    obs.className = "obstacle";
+    obs.style.left = window.innerWidth + "px";
 
-    speed += 0.05;
+    document.getElementById("game").appendChild(obs);
 
-    setTimeout(loop, 600 - speed*5);
+    let move = setInterval(()=>{
+        let left = parseInt(obs.style.left);
+        obs.style.left = left - speed + "px";
+
+        let sRect = squirrel.getBoundingClientRect();
+        let oRect = obs.getBoundingClientRect();
+
+        if(
+            oRect.left < sRect.right &&
+            oRect.right > sRect.left &&
+            oRect.bottom > sRect.top
+        ){
+            running = false;
+            alert("💀 Ты врезался! Очки: " + score);
+            location.reload();
+        }
+
+        if(left < -50){
+            obs.remove();
+            clearInterval(move);
+        }
+    },20);
+
+    setTimeout(spawnObstacle, 1200 - speed*50);
+}
+
+function gameLoop(){
+    if(!running) return;
+
+    score++;
+    scoreEl.innerText = score;
+
+    if(score % 200 === 0){
+        speed += 1;
+    }
+
+    requestAnimationFrame(gameLoop);
 }
 
 startBtn.onclick = ()=>{
     startBtn.style.display = "none";
     running = true;
     score = 0;
-    combo = 1;
-    speed = 4;
-    loop();
+    speed = 6;
+    spawnObstacle();
+    gameLoop();
 };
 </script>
 
