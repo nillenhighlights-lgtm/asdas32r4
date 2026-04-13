@@ -3,343 +3,277 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spotify Run Pro</title>
+    <title>Spotify Runner Fix</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
-            --sp-green: #1DB954;
-            --sp-black: #121212;
-            --sp-dark-grey: #212121;
-            --sp-light-grey: #b3b3b3;
+            --green: #1DB954;
+            --black: #121212;
         }
 
         body {
             margin: 0;
-            padding: 0;
-            background-color: var(--sp-black);
+            background: var(--black);
             color: white;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: sans-serif;
             overflow: hidden;
+            touch-action: none;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            touch-action: none;
         }
 
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
+        #game-container {
+            position: relative;
             width: 100%;
-            height: 100%;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            box-sizing: border-box;
-            z-index: 10;
-        }
-
-        .stats-container {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--sp-light-grey);
-        }
-
-        #score-val, #high-score-val {
-            color: var(--sp-green);
-            font-weight: bold;
-            font-size: 18px;
+            max-width: 600px;
+            aspect-ratio: 2/1;
         }
 
         canvas {
             width: 100%;
-            max-width: 600px;
-            aspect-ratio: 2/1;
-            /* Убираем размытие на ретина-дисплеях */
-            image-rendering: -webkit-optimize-contrast;
+            height: 100%;
+            display: block;
         }
 
-        #overlay {
+        #ui {
             position: absolute;
-            background: rgba(18, 18, 18, 0.85);
-            width: 100%;
-            height: 100%;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 14px;
+            color: var(--green);
+        }
+
+        #menu {
+            position: absolute;
+            inset: 0;
+            background: rgba(18, 18, 18, 0.9);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 20;
-            text-align: center;
-            backdrop-filter: blur(5px);
+            z-index: 100;
         }
 
         .btn {
-            background: var(--sp-green);
+            background: var(--green);
             color: black;
             border: none;
             padding: 15px 40px;
-            border-radius: 30px;
+            border-radius: 50px;
             font-size: 18px;
             font-weight: bold;
-            margin-top: 20px;
-            pointer-events: auto;
-            transition: transform 0.1s;
-        }
-
-        .btn:active { transform: scale(0.95); }
-
-        .game-title {
-            font-size: 24px;
-            margin-bottom: 5px;
+            cursor: pointer;
+            margin-top: 15px;
         }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <div class="stats-container">
-            <div>Score: <span id="score-val">0</span></div>
-            <div>Best: <span id="high-score-val">0</span></div>
-        </div>
+<div id="game-container">
+    <div id="ui">
+        <div id="score">SCORE: 0</div>
+        <div id="best">BEST: 0</div>
     </div>
 
-    <div id="overlay">
-        <div class="game-title">Spotify Runner</div>
-        <div style="color: var(--sp-light-grey); font-size: 14px;">Перепрыгивай шумы, держи ритм!</div>
-        <button class="btn" onclick="startGame()">ИГРАТЬ</button>
+    <div id="menu">
+        <h1 id="title">SPOTIFY RUN</h1>
+        <p style="color: #b3b3b3" id="subtitle">Жми на экран, чтобы прыгать</p>
+        <button class="btn" onclick="initGame()">ИГРАТЬ</button>
     </div>
 
-    <canvas id="game"></canvas>
+    <canvas id="canvas"></canvas>
+</div>
 
 <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
-    tg.setHeaderColor('#121212');
 
-    const canvas = document.getElementById('game');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const scoreDisplay = document.getElementById('score-val');
-    const highScoreDisplay = document.getElementById('high-score-val');
-    const overlay = document.getElementById('overlay');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const menu = document.getElementById('menu');
 
-    // Настройка разрешения
-    function resize() {
-        canvas.width = 600;
-        canvas.height = 300;
-    }
-    resize();
+    // Настройки
+    canvas.width = 800;
+    canvas.height = 400;
 
-    let gameState = 'START'; // START, PLAYING, GAMEOVER
+    let isPlaying = false;
     let score = 0;
-    let highScore = localStorage.getItem('sp-high-score') || 0;
-    let gameSpeed = 4.5;
-    let frames = 0;
-    highScoreDisplay.innerText = highScore;
-
-    const gravity = 0.5;
-    
-    // Частицы при взрыве
-    let particles = [];
-    class Particle {
-        constructor(x, y) {
-            this.x = x;
-            this.y = y;
-            this.size = Math.random() * 4 + 2;
-            this.speedX = (Math.random() - 0.5) * 8;
-            this.speedY = (Math.random() - 0.5) * 8;
-            this.life = 1;
-        }
-        update() {
-            this.x += this.speedX;
-            this.y += this.speedY;
-            this.life -= 0.02;
-        }
-        draw() {
-            ctx.fillStyle = `rgba(29, 185, 84, ${this.life})`;
-            ctx.fillRect(this.x, this.y, this.size, this.size);
-        }
-    }
+    let best = localStorage.getItem('best_score') || 0;
+    bestEl.innerText = `BEST: ${best}`;
 
     const player = {
-        x: 80,
-        y: 200,
-        r: 20,
-        dy: 0,
-        jumpPower: -11,
-        grounded: false,
-        angle: 0,
+        x: 100,
+        y: 300,
+        r: 25,
+        v: 0,
+        jump: -13,
+        grav: 0.7,
+        onGround: false,
 
         draw() {
             ctx.save();
             ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
             
-            // Тень
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#1DB954';
-            
-            // Тело (лого)
+            // Кружок
+            ctx.fillStyle = '#1DB954';
             ctx.beginPath();
             ctx.arc(0, 0, this.r, 0, Math.PI * 2);
-            ctx.fillStyle = '#1DB954';
             ctx.fill();
-            
-            // Полоски
+
+            // Полоски внутри
             ctx.strokeStyle = '#121212';
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 4;
             ctx.lineCap = 'round';
             for(let i = 0; i < 3; i++) {
                 ctx.beginPath();
-                ctx.arc(0, 5 - i*4, 15 - i*4, Math.PI * 1.2, Math.PI * 1.8);
+                ctx.arc(0, 8 - i*6, 18 - i*5, Math.PI * 1.2, Math.PI * 1.8);
                 ctx.stroke();
             }
             ctx.restore();
-            ctx.shadowBlur = 0;
         },
 
         update() {
-            if (this.y < 250) {
-                this.dy += gravity;
-                this.grounded = false;
+            this.v += this.grav;
+            this.y += this.v;
+
+            const ground = canvas.height - 50 - this.r;
+            if (this.y > ground) {
+                this.y = ground;
+                this.v = 0;
+                this.onGround = true;
             } else {
-                this.dy = 0;
-                this.y = 250;
-                this.grounded = true;
+                this.onGround = false;
             }
-            
-            this.y += this.dy;
-            if (!this.grounded) this.angle += 0.1;
-            else this.angle = 0;
-            
             this.draw();
         }
     };
 
     let obstacles = [];
+    let obsTimer = 0;
+
     class Obstacle {
         constructor() {
-            this.w = 20 + Math.random() * 20;
-            this.h = 40 + Math.random() * 50;
             this.x = canvas.width + 50;
-            this.y = 260 - this.h;
+            this.count = Math.random() > 0.5 ? 2 : 1; // 1 или 2 палки
+            this.w = 12; // ширина палочки
+            this.h = 40 + Math.random() * 60; // высота
+            this.gap = 10; // расстояние между двумя палками
         }
+
         draw() {
-            let gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.h);
-            gradient.addColorStop(0, '#FFFFFF');
-            gradient.addColorStop(1, '#555555');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.roundRect(this.x, this.y, this.w, this.h, 5);
-            ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+            // Рисуем палочки
+            for (let i = 0; i < this.count; i++) {
+                const posX = this.x + (i * (this.w + this.gap));
+                ctx.beginPath();
+                ctx.roundRect(posX, canvas.height - 50 - this.h, this.w, this.h, 5);
+                ctx.fill();
+            }
         }
-        update() {
-            this.x -= gameSpeed;
+
+        update(speed) {
+            this.x -= speed;
             this.draw();
+        }
+
+        checkCol() {
+            // Упрощенная проверка столкновения для палок
+            const totalWidth = this.count * (this.w + this.gap);
+            if (player.x + player.r - 5 > this.x && 
+                player.x - player.r + 5 < this.x + totalWidth &&
+                player.y + player.r - 5 > canvas.height - 50 - this.h) {
+                return true;
+            }
+            return false;
         }
     }
 
-    function startGame() {
-        gameState = 'PLAYING';
-        overlay.style.display = 'none';
+    function initGame() {
         score = 0;
-        gameSpeed = 4.5;
         obstacles = [];
-        particles = [];
-        player.y = 200;
-        loop();
+        player.y = 300;
+        player.v = 0;
+        isPlaying = true;
+        menu.style.display = 'none';
+        scoreEl.innerText = `SCORE: 0`;
+        animate();
     }
 
     function gameOver() {
-        gameState = 'GAMEOVER';
+        isPlaying = false;
         tg.HapticFeedback.notificationOccurred('error');
-        if (score > highScore) {
-            highScore = score;
-            localStorage.setItem('sp-high-score', highScore);
-            highScoreDisplay.innerText = highScore;
+        if (score > best) {
+            best = score;
+            localStorage.setItem('best_score', best);
+            bestEl.innerText = `BEST: ${best}`;
         }
-        
-        // Создаем взрыв
-        for(let i=0; i<15; i++) particles.push(new Particle(player.x, player.y));
-        
-        setTimeout(() => {
-            overlay.style.display = 'flex';
-            overlay.querySelector('.game-title').innerText = 'GAME OVER';
-            overlay.querySelector('.btn').innerText = 'ПОВТОРИТЬ';
-        }, 1000);
+        document.getElementById('title').innerText = "TRACK PAUSED";
+        document.getElementById('subtitle').innerText = `Твой счет: ${score}`;
+        menu.style.display = 'flex';
     }
 
-    function loop() {
-        if (gameState !== 'PLAYING' && particles.length === 0) return;
+    let speed = 7;
 
-        ctx.fillStyle = '#121212';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    function animate() {
+        if (!isPlaying) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Линия пола
+        // Пол
         ctx.strokeStyle = '#282828';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(0, 260);
-        ctx.lineTo(canvas.width, 260);
+        ctx.moveTo(0, canvas.height - 50);
+        ctx.lineTo(canvas.width, canvas.height - 50);
         ctx.stroke();
 
-        if (gameState === 'PLAYING') {
-            player.update();
+        player.update();
 
-            // Спавн
-            if (frames % 90 === 0) obstacles.push(new Obstacle());
-            
-            obstacles.forEach((obs, index) => {
-                obs.update();
-                
-                // Коллизия
-                if (player.x + 15 > obs.x && player.x - 15 < obs.x + obs.w &&
-                    player.y + 15 > obs.y) {
-                    gameOver();
-                }
-
-                if (obs.x < -50) obstacles.splice(index, 1);
-            });
-
-            frames++;
-            if (frames % 5 === 0) {
-                score++;
-                scoreDisplay.innerText = score;
-            }
-            gameSpeed += 0.001;
+        // Спавн палок
+        obsTimer++;
+        if (obsTimer > Math.max(60, 100 - score/10)) {
+            obstacles.push(new Obstacle());
+            obsTimer = 0;
         }
 
-        // Отрисовка частиц взрыва
-        particles.forEach((p, i) => {
-            p.update();
-            p.draw();
-            if (p.life <= 0) particles.splice(i, 1);
+        obstacles.forEach((obs, i) => {
+            obs.update(speed + score / 500);
+            if (obs.checkCol()) gameOver();
+            if (obs.x < -100) {
+                obstacles.splice(i, 1);
+                score += 10;
+                scoreEl.innerText = `SCORE: ${score}`;
+            }
         });
 
-        requestAnimationFrame(loop);
+        requestAnimationFrame(animate);
     }
 
-    // Управление
-    const jumpAction = () => {
-        if (gameState === 'PLAYING') {
-            if (player.grounded) {
-                player.dy = player.jumpPower;
-                tg.HapticFeedback.impactOccurred('medium');
-            }
+    // УПРАВЛЕНИЕ - Работает на тач и клик
+    function triggerJump(e) {
+        if (e) e.preventDefault();
+        if (isPlaying && player.onGround) {
+            player.v = player.jump;
+            tg.HapticFeedback.impactOccurred('light');
         }
-    };
+    }
 
-    window.addEventListener('keydown', (e) => { if(e.code === 'Space') jumpAction(); });
-    window.addEventListener('touchstart', (e) => {
-        if (e.target.tagName !== 'BUTTON') {
-            e.preventDefault();
-            jumpAction();
-        }
-    }, {passive: false});
+    window.addEventListener('touchstart', triggerJump, { passive: false });
+    window.addEventListener('mousedown', (e) => {
+        if (e.target.tagName !== 'BUTTON') triggerJump();
+    });
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') triggerJump();
+    });
 
 </script>
 </body>
