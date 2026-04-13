@@ -173,39 +173,47 @@
         angle: 0,
 
         draw() {
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.rotate(this.angle);
-            
-            // Тень
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#1DB954';
-            
-            // Тело (лого)
-            ctx.beginPath();
-            ctx.arc(0, 0, this.r, 0, Math.PI * 2);
-            ctx.fillStyle = '#1DB954';
-            ctx.fill();
-            
-            // Улыбка (2 перевернутые полоски)
-            ctx.strokeStyle = '#121212';
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            
-            // Полоска 1 (верхняя, шире)
-            ctx.beginPath();
-            // Сдвиг вниз от центра (y > 0)
-            ctx.arc(0, 10, 14, Math.PI * 0.2, Math.PI * 0.8);
-            ctx.stroke();
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
 
-            // Полоска 2 (нижняя, уже)
-            ctx.beginPath();
-            ctx.arc(0, 0, 10, Math.PI * 0.2, Math.PI * 0.8);
-            ctx.stroke();
+    // Тень
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = '#1DB954';
 
-            ctx.restore();
-            ctx.shadowBlur = 0;
-        },
+    // Круг (фон)
+    ctx.beginPath();
+    ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = '#1DB954';
+    ctx.fill();
+
+    // Настройки линий
+    ctx.strokeStyle = '#121212';
+    ctx.lineCap = 'round';
+
+    // --- Волны Spotify ---
+
+    // 1 линия (верхняя, самая длинная)
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(-2, -6, 16, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+
+    // 2 линия (средняя)
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(-2, 2, 12, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+
+    // 3 линия (нижняя, самая короткая)
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(-2, 8, 8, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+
+    ctx.restore();
+    ctx.shadowBlur = 0;
+}
 
         update() {
             this.dy += gravity;
