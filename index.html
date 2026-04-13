@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spotify Run Pro</title>
+    <title>Spotify Run Pro: Музыкальная гонка</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -60,7 +60,6 @@
             width: 100%;
             max-width: 600px;
             aspect-ratio: 2/1;
-            /* Убираем размытие на ретина-дисплеях */
             image-rendering: -webkit-optimize-contrast;
         }
 
@@ -110,7 +109,7 @@
 
     <div id="overlay">
         <div class="game-title">Spotify Runner</div>
-        <div style="color: var(--sp-light-grey); font-size: 14px;">Перепрыгивай шумы, держи ритм!</div>
+        <div style="color: var(--sp-light-grey); font-size: 14px;">Держи ритм, перепрыгивай шумы и ноты!</div>
         <button class="btn" onclick="startGame()">ИГРАТЬ</button>
     </div>
 
@@ -127,7 +126,6 @@
     const highScoreDisplay = document.getElementById('high-score-val');
     const overlay = document.getElementById('overlay');
 
-    // Настройка разрешения
     function resize() {
         canvas.width = 600;
         canvas.height = 300;
@@ -189,22 +187,27 @@
             ctx.fillStyle = '#1DB954';
             ctx.fill();
             
-            // Полоски (изменено на 2)
+            // Улыбка (2 перевернутые полоски)
             ctx.strokeStyle = '#121212';
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 4;
             ctx.lineCap = 'round';
-            for(let i = 0; i < 2; i++) {
-                ctx.beginPath();
-                // Немного сдвинул координаты, чтобы две полоски смотрелись по центру
-                ctx.arc(0, 3 - i*6, 15 - i*4, Math.PI * 1.2, Math.PI * 1.8);
-                ctx.stroke();
-            }
+            
+            // Полоска 1 (верхняя, шире)
+            ctx.beginPath();
+            // Сдвиг вниз от центра (y > 0)
+            ctx.arc(0, 5, 14, Math.PI * 0.2, Math.PI * 0.8);
+            ctx.stroke();
+
+            // Полоска 2 (нижняя, уже)
+            ctx.beginPath();
+            ctx.arc(0, 10, 10, Math.PI * 0.2, Math.PI * 0.8);
+            ctx.stroke();
+
             ctx.restore();
             ctx.shadowBlur = 0;
         },
 
         update() {
-            // ИСПРАВЛЕНА ЛОГИКА ФИЗИКИ: сначала применяем гравитацию и сдвиг, потом проверяем столкновение
             this.dy += gravity;
             this.y += this.dy;
 
@@ -223,28 +226,129 @@
         }
     };
 
-    let obstacles = [];
+    // Базовый класс для препятствий
     class Obstacle {
         constructor() {
-            this.w = 20 + Math.random() * 20;
-            this.h = 40 + Math.random() * 50;
-            this.x = canvas.width + 50;
-            this.y = 260 - this.h;
+            this.x = canvas.width + 100;
+            // random number to create noise texture
+            this.textureSeed = Math.random() * 1000;
         }
-        draw() {
-            let gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.h);
-            gradient.addColorStop(0, '#FFFFFF');
-            gradient.addColorStop(1, '#555555');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.roundRect(this.x, this.y, this.w, this.h, 5);
-            ctx.fill();
-        }
+        draw() {} // Override in subclass
         update() {
             this.x -= gameSpeed;
             this.draw();
         }
     }
+
+    // Препятствие: Блок шума (шумный прямоугольник)
+    class GroundBlockObstacle extends Obstacle {
+        constructor() {
+            super();
+            this.w = 20 + Math.random() * 20;
+            this.h = 40 + Math.random() * 50;
+            this.y = 260 - this.h;
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            
+            // Основной градиент
+            let gradient = ctx.createLinearGradient(0, 0, 0, this.h);
+            gradient.addColorStop(0, '#555555');
+            gradient.addColorStop(1, '#FFFFFF');
+            ctx.fillStyle = gradient;
+            
+            ctx.beginPath();
+            ctx.roundRect(0, 0, this.w, this.h, 5);
+            ctx.fill();
+            
+            // Шумная текстура
+            ctx.fillStyle = `rgba(0, 0, 0, 0.2)`;
+            for(let k=0; k<10; k++) {
+                ctx.fillRect(Math.random()*this.w, Math.random()*this.h, 2, 2);
+            }
+            ctx.restore();
+        }
+    }
+
+    // Препятствие: Нота (наземная)
+    class GroundNoteObstacle extends Obstacle {
+        constructor() {
+            super();
+            this.w = 30;
+            this.h = 50;
+            this.y = 260 - this.h;
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.fillStyle = 'white';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+            
+            // Хвостик ноты
+            ctx.fillRect(20, 0, 5, 40);
+            
+            // Головка ноты (эллипс)
+            ctx.beginPath();
+            ctx.ellipse(10, 40, 10, 7, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Поперечина (флажок)
+            ctx.beginPath();
+            ctx.moveTo(25, 0);
+            ctx.lineTo(25, 10);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'white';
+            ctx.stroke();
+            
+            ctx.restore();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    // Препятствие: Альбом (летающий)
+    class FlyingAlbumObstacle extends Obstacle {
+        constructor() {
+            super();
+            this.w = 60;
+            this.h = 60;
+            // Случайная высота: в прыжке или на уровне головы
+            this.y = (Math.random() < 0.5) ? 150 : 80;
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            
+            // Тень
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            
+            // Корпус альбома
+            ctx.fillStyle = '#b3b3b3'; // Светло-серый
+            ctx.beginPath();
+            ctx.roundRect(0, 0, this.w, this.h, 10);
+            ctx.fill();
+            
+            // Текстура-заглушка (шум)
+            ctx.fillStyle = `rgba(0, 0, 0, 0.1)`;
+            for(let k=0; k<20; k++) {
+                ctx.fillRect(Math.random()*this.w, Math.random()*this.h, 3, 3);
+            }
+
+            // Текст (мелкий)
+            ctx.fillStyle = '#121212';
+            ctx.font = 'bold 8px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('ALBUM', this.w/2, this.h/2 - 5);
+            ctx.fillText('PLACEHOLDER', this.w/2, this.h/2 + 5);
+
+            ctx.restore();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    let obstacles = [];
 
     function startGame() {
         gameState = 'PLAYING';
@@ -295,19 +399,29 @@
         if (gameState === 'PLAYING') {
             player.update();
 
-            // Спавн
-            if (frames % 90 === 0) obstacles.push(new Obstacle());
+            // Спавн разных препятствий
+            if (frames % 90 === 0) {
+                let r = Math.random();
+                if (r < 0.4) {
+                    obstacles.push(new GroundBlockObstacle());
+                } else if (r < 0.7) {
+                    obstacles.push(new GroundNoteObstacle());
+                } else {
+                    obstacles.push(new FlyingAlbumObstacle());
+                }
+            }
             
             obstacles.forEach((obs, index) => {
                 obs.update();
                 
-                // Коллизия
-                if (player.x + 15 > obs.x && player.x - 15 < obs.x + obs.w &&
-                    player.y + 15 > obs.y) {
+                // Коллизия (учитываем радиус игрока и размеры препятствия)
+                let playerHitRadius = 15;
+                if (player.x + playerHitRadius > obs.x && player.x - playerHitRadius < obs.x + obs.w &&
+                    player.y + playerHitRadius > obs.y && player.y - playerHitRadius < obs.y + obs.h) {
                     gameOver();
                 }
 
-                if (obs.x < -50) obstacles.splice(index, 1);
+                if (obs.x < -100) obstacles.splice(index, 1);
             });
 
             frames++;
