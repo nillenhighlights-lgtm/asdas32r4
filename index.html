@@ -3,302 +3,344 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spotify Runner - Telegram Mini App</title>
+    <title>Spotify Run Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        :root {
+            --sp-green: #1DB954;
+            --sp-black: #121212;
+            --sp-dark-grey: #212121;
+            --sp-light-grey: #b3b3b3;
+        }
+
         body {
             margin: 0;
             padding: 0;
-            background-color: #191414; /* Темный фон Spotify */
-            color: #FFFFFF;
-            font-family: 'Circular', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: var(--sp-black);
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
-            touch-action: none; /* Отключаем скролл на мобилках */
+            touch-action: none;
         }
 
-        #game-container {
-            position: relative;
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
-            max-width: 600px;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--sp-light-grey);
+        }
+
+        #score-val, #high-score-val {
+            color: var(--sp-green);
+            font-weight: bold;
+            font-size: 18px;
         }
 
         canvas {
-            display: block;
             width: 100%;
-            background-color: #191414;
-            border-bottom: 2px solid #282828;
+            max-width: 600px;
+            aspect-ratio: 2/1;
+            /* Убираем размытие на ретина-дисплеях */
+            image-rendering: -webkit-optimize-contrast;
         }
 
-        #score-board {
+        #overlay {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 20px;
-            font-weight: bold;
-            color: #1DB954; /* Зеленый цвет Spotify */
-        }
-
-        #game-over {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            background: rgba(18, 18, 18, 0.85);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
             text-align: center;
+            backdrop-filter: blur(5px);
         }
 
-        #game-over h1 {
-            margin: 0;
-            font-size: 32px;
-            color: #1DB954;
+        .btn {
+            background: var(--sp-green);
+            color: black;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+            pointer-events: auto;
+            transition: transform 0.1s;
         }
 
-        #game-over p {
-            margin: 10px 0 0;
-            font-size: 16px;
-            color: #b3b3b3;
+        .btn:active { transform: scale(0.95); }
+
+        .game-title {
+            font-size: 24px;
+            margin-bottom: 5px;
         }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <div id="score-board">Счет: <span id="score">0</span></div>
-        <canvas id="gameCanvas" width="600" height="200"></canvas>
-        <div id="game-over">
-            <h1>Трек на паузе</h1>
-            <p>Нажми, чтобы продолжить</p>
+    <div id="ui-layer">
+        <div class="stats-container">
+            <div>Score: <span id="score-val">0</span></div>
+            <div>Best: <span id="high-score-val">0</span></div>
         </div>
     </div>
 
-    <script>
-        // Инициализация Telegram Web App
-        const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем на весь экран
+    <div id="overlay">
+        <div class="game-title">Spotify Runner</div>
+        <div style="color: var(--sp-light-grey); font-size: 14px;">Перепрыгивай шумы, держи ритм!</div>
+        <button class="btn" onclick="startGame()">ИГРАТЬ</button>
+    </div>
 
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
-        const gameOverScreen = document.getElementById('game-over');
+    <canvas id="game"></canvas>
 
-        // Игровые переменные
-        let isPlaying = false;
-        let isGameOver = false;
-        let score = 0;
-        let frames = 0;
-        let gameSpeed = 5;
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    tg.setHeaderColor('#121212');
 
-        // Физика
-        const gravity = 0.6;
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('score-val');
+    const highScoreDisplay = document.getElementById('high-score-val');
+    const overlay = document.getElementById('overlay');
 
-        // Игрок (Логотип Spotify)
-        const player = {
-            x: 50,
-            y: 150,
-            radius: 18, // Радиус кружка
-            dy: 0,
-            jumpForce: -10,
-            isGrounded: false,
-            
-            draw() {
-                // Рисуем зеленый круг
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = '#1DB954';
-                ctx.fill();
-                ctx.closePath();
+    // Настройка разрешения
+    function resize() {
+        canvas.width = 600;
+        canvas.height = 300;
+    }
+    resize();
 
-                // Рисуем черные "волны" как у Spotify
-                ctx.strokeStyle = '#191414';
-                ctx.lineWidth = 3;
-                ctx.lineCap = 'round';
+    let gameState = 'START'; // START, PLAYING, GAMEOVER
+    let score = 0;
+    let highScore = localStorage.getItem('sp-high-score') || 0;
+    let gameSpeed = 4.5;
+    let frames = 0;
+    highScoreDisplay.innerText = highScore;
 
-                // Верхняя волна
-                ctx.beginPath();
-                ctx.arc(this.x, this.y + 6, 14, Math.PI * 1.25, Math.PI * 1.75);
-                ctx.stroke();
-                
-                // Средняя волна
-                ctx.lineWidth = 2.5;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y + 2, 10, Math.PI * 1.25, Math.PI * 1.75);
-                ctx.stroke();
-
-                // Нижняя волна
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y - 2, 6, Math.PI * 1.25, Math.PI * 1.75);
-                ctx.stroke();
-            },
-
-            update() {
-                // Гравитация
-                if (!this.isGrounded) {
-                    this.dy += gravity;
-                    this.y += this.dy;
-                }
-
-                // Столкновение с землей
-                if (this.y + this.radius >= canvas.height - 10) {
-                    this.y = canvas.height - 10 - this.radius;
-                    this.dy = 0;
-                    this.isGrounded = true;
-                } else {
-                    this.isGrounded = false;
-                }
-
-                this.draw();
-            },
-
-            jump() {
-                if (this.isGrounded) {
-                    this.dy = this.jumpForce;
-                    this.isGrounded = false;
-                    tg.HapticFeedback.impactOccurred('light'); // Вибрация для ТГ
-                }
-            }
-        };
-
-        // Препятствия (Эквалайзер)
-        let obstacles = [];
-
-        class Obstacle {
-            constructor() {
-                this.width = 15 + Math.random() * 15; // Ширина столбика
-                this.height = 30 + Math.random() * 40; // Высота столбика
-                this.x = canvas.width;
-                this.y = canvas.height - 10 - this.height;
-            }
-
-            draw() {
-                ctx.fillStyle = '#FFFFFF';
-                // Делаем столбик похожим на полосу эквалайзера (с закругленным верхом)
-                ctx.beginPath();
-                ctx.roundRect(this.x, this.y, this.width, this.height, [5, 5, 0, 0]);
-                ctx.fill();
-            }
-
-            update() {
-                this.x -= gameSpeed;
-                this.draw();
-            }
+    const gravity = 0.5;
+    
+    // Частицы при взрыве
+    let particles = [];
+    class Particle {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.size = Math.random() * 4 + 2;
+            this.speedX = (Math.random() - 0.5) * 8;
+            this.speedY = (Math.random() - 0.5) * 8;
+            this.life = 1;
         }
+        update() {
+            this.x += this.speedX;
+            this.y += this.speedY;
+            this.life -= 0.02;
+        }
+        draw() {
+            ctx.fillStyle = `rgba(29, 185, 84, ${this.life})`;
+            ctx.fillRect(this.x, this.y, this.size, this.size);
+        }
+    }
 
-        // Логика игры
-        function handleObstacles() {
-            // Спавн препятствий
-            if (frames % (Math.floor(Math.random() * 60) + 70) === 0) {
-                obstacles.push(new Obstacle());
+    const player = {
+        x: 80,
+        y: 200,
+        r: 20,
+        dy: 0,
+        jumpPower: -11,
+        grounded: false,
+        angle: 0,
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            
+            // Тень
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#1DB954';
+            
+            // Тело (лого)
+            ctx.beginPath();
+            ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+            ctx.fillStyle = '#1DB954';
+            ctx.fill();
+            
+            // Полоски
+            ctx.strokeStyle = '#121212';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            for(let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.arc(0, 5 - i*4, 15 - i*4, Math.PI * 1.2, Math.PI * 1.8);
+                ctx.stroke();
             }
+            ctx.restore();
+            ctx.shadowBlur = 0;
+        },
 
-            for (let i = 0; i < obstacles.length; i++) {
-                let obs = obstacles[i];
+        update() {
+            if (this.y < 250) {
+                this.dy += gravity;
+                this.grounded = false;
+            } else {
+                this.dy = 0;
+                this.y = 250;
+                this.grounded = true;
+            }
+            
+            this.y += this.dy;
+            if (!this.grounded) this.angle += 0.1;
+            else this.angle = 0;
+            
+            this.draw();
+        }
+    };
+
+    let obstacles = [];
+    class Obstacle {
+        constructor() {
+            this.w = 20 + Math.random() * 20;
+            this.h = 40 + Math.random() * 50;
+            this.x = canvas.width + 50;
+            this.y = 260 - this.h;
+        }
+        draw() {
+            let gradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.h);
+            gradient.addColorStop(0, '#FFFFFF');
+            gradient.addColorStop(1, '#555555');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.roundRect(this.x, this.y, this.w, this.h, 5);
+            ctx.fill();
+        }
+        update() {
+            this.x -= gameSpeed;
+            this.draw();
+        }
+    }
+
+    function startGame() {
+        gameState = 'PLAYING';
+        overlay.style.display = 'none';
+        score = 0;
+        gameSpeed = 4.5;
+        obstacles = [];
+        particles = [];
+        player.y = 200;
+        loop();
+    }
+
+    function gameOver() {
+        gameState = 'GAMEOVER';
+        tg.HapticFeedback.notificationOccurred('error');
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('sp-high-score', highScore);
+            highScoreDisplay.innerText = highScore;
+        }
+        
+        // Создаем взрыв
+        for(let i=0; i<15; i++) particles.push(new Particle(player.x, player.y));
+        
+        setTimeout(() => {
+            overlay.style.display = 'flex';
+            overlay.querySelector('.game-title').innerText = 'GAME OVER';
+            overlay.querySelector('.btn').innerText = 'ПОВТОРИТЬ';
+        }, 1000);
+    }
+
+    function loop() {
+        if (gameState !== 'PLAYING' && particles.length === 0) return;
+
+        ctx.fillStyle = '#121212';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Линия пола
+        ctx.strokeStyle = '#282828';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(0, 260);
+        ctx.lineTo(canvas.width, 260);
+        ctx.stroke();
+
+        if (gameState === 'PLAYING') {
+            player.update();
+
+            // Спавн
+            if (frames % 90 === 0) obstacles.push(new Obstacle());
+            
+            obstacles.forEach((obs, index) => {
                 obs.update();
-
-                // Удаление ушедших за экран
-                if (obs.x + obs.width < 0) {
-                    obstacles.splice(i, 1);
-                    i--;
-                    continue;
-                }
-
-                // Проверка столкновений (Box collision approximation)
-                let distX = Math.abs(player.x - obs.x - obs.width / 2);
-                let distY = Math.abs(player.y - obs.y - obs.height / 2);
-
-                if (distX <= (obs.width / 2 + player.radius * 0.7) && 
-                    distY <= (obs.height / 2 + player.radius * 0.7)) {
+                
+                // Коллизия
+                if (player.x + 15 > obs.x && player.x - 15 < obs.x + obs.w &&
+                    player.y + 15 > obs.y) {
                     gameOver();
                 }
-            }
-        }
 
-        function gameOver() {
-            isGameOver = true;
-            isPlaying = false;
-            gameOverScreen.style.display = 'block';
-            tg.HapticFeedback.notificationOccurred('error'); // Вибрация при проигрыше
-        }
+                if (obs.x < -50) obstacles.splice(index, 1);
+            });
 
-        function resetGame() {
-            isGameOver = false;
-            isPlaying = true;
-            score = 0;
-            frames = 0;
-            gameSpeed = 5;
-            obstacles = [];
-            player.y = 150;
-            player.dy = 0;
-            gameOverScreen.style.display = 'none';
-            scoreElement.innerText = score;
-            animate();
-        }
-
-        function drawGround() {
-            ctx.beginPath();
-            ctx.moveTo(0, canvas.height - 10);
-            ctx.lineTo(canvas.width, canvas.height - 10);
-            ctx.strokeStyle = '#1DB954';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
-
-        // Основной игровой цикл
-        function animate() {
-            if (!isPlaying) return;
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            drawGround();
-            player.update();
-            handleObstacles();
-
-            // Обновление счета
             frames++;
-            if (frames % 10 === 0) {
+            if (frames % 5 === 0) {
                 score++;
-                scoreElement.innerText = score;
+                scoreDisplay.innerText = score;
             }
-
-            // Ускорение игры со временем
-            if (frames % 500 === 0) {
-                gameSpeed += 0.5;
-            }
-
-            requestAnimationFrame(animate);
+            gameSpeed += 0.001;
         }
 
-        // Управление (Клавиатура и Тап)
-        function handleInput() {
-            if (isGameOver) {
-                resetGame();
-            } else if (!isPlaying) {
-                resetGame();
-            } else {
-                player.jump();
-            }
-        }
-
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') {
-                handleInput();
-            }
+        // Отрисовка частиц взрыва
+        particles.forEach((p, i) => {
+            p.update();
+            p.draw();
+            if (p.life <= 0) particles.splice(i, 1);
         });
 
-        // Слушатель для мобильных (Телеграм)
-        window.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Запрещаем зум и скролл при тапе
-            handleInput();
-        }, { passive: false });
+        requestAnimationFrame(loop);
+    }
 
-        // Отрисовка первого кадра до начала
-        player.draw();
-        drawGround();
-    </script>
+    // Управление
+    const jumpAction = () => {
+        if (gameState === 'PLAYING') {
+            if (player.grounded) {
+                player.dy = player.jumpPower;
+                tg.HapticFeedback.impactOccurred('medium');
+            }
+        }
+    };
+
+    window.addEventListener('keydown', (e) => { if(e.code === 'Space') jumpAction(); });
+    window.addEventListener('touchstart', (e) => {
+        if (e.target.tagName !== 'BUTTON') {
+            e.preventDefault();
+            jumpAction();
+        }
+    }, {passive: false});
+
+</script>
 </body>
 </html>
